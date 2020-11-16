@@ -1,10 +1,5 @@
-(ns core
- (:require [malli.core :as m]
-           [malli.util :as mu]
-           [malli.json-schema :as mj]
-           [malli.generator :as mg]
-           [clojure.walk :refer [postwalk]]
-           [hodur-engine.core :as h]
+(ns hodur-malli.core
+ (:require [clojure.walk :refer [postwalk]]
            [datascript.core :as ds]))
 
 
