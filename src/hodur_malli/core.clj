@@ -53,18 +53,21 @@
                 (into [(with-meta 'default default)] cat)
                 ))))
 
-(defn enum-registry [metadb]
- (->> metadb
-      (ds/q '[:find (pull ?t [*
-                              {:field/_parent [:field/kebab-case-name]}])
-              :where [?t :type/enum]])
-      (mapcat identity)
-      (map (fn [{:type/keys [kebab-case-name]
-                 children   :field/_parent}]
-            [kebab-case-name (->> children
-                                  (map (comp name :field/kebab-case-name))
-                                  (into [:enum]))]))
-      (into {})))
+(defn enum-registry [metadb type-name-key field-name-key]
+ (let [child-clause ['* {:field/_parent [field-name-key]}]
+       pull-clause (concat '(pull ?t)
+                           (list child-clause))]
+  (->> metadb
+       (ds/q [:find pull-clause
+              :where ['?t :type/enum]])
+       (mapcat identity)
+       (map (fn [{children :field/_parent
+                  :as      enum}]
+             [(get enum type-name-key)
+              (->> children
+                   (map (comp name field-name-key))
+                   (into [:enum]))]))
+       (into {}))))
 
 
 (defn resolve-entities
@@ -98,8 +101,7 @@
  '[:find (pull ?e
                [*
                 {:field/_parent
-                 [:field/kebab-case-name
-                  :field/cardinality
+                 [*
                   {:field/type [*]}]}])])
 
 (defn entities-registry [metadb type-name-key field-name-key]
@@ -123,7 +125,7 @@
  [metadb & {:keys [type-name-key field-name-key]
             :or   {type-name-key  :type/kebab-case-name
                    field-name-key :field/kebab-case-name}}]
- (let [enums (enum-registry metadb)
+ (let [enums (enum-registry metadb type-name-key field-name-key)
        sub-entities (entities-registry metadb type-name-key field-name-key)
        base-entities (base-entities metadb type-name-key field-name-key)]
   (->> base-entities
