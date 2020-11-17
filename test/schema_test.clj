@@ -3,7 +3,7 @@
            [malli.generator :as mg]
            [malli.core :as m]
            [datascript.core :as ds]
-           [core :as c]
+           [hodur-malli.core :as c]
            [hodur-engine.core :as h]))
 
 (def test-schema
@@ -27,8 +27,9 @@
 
 (deftest validation-test
  (is (m/validate (c/->malli
-                  @(h/init-schema test-schema))
-
+                  @(h/init-schema test-schema)
+                  :field-name-key :field/kebab-case-name
+                  :type-name-key :type/camelCaseName)
                  {:name "Weapon X"
                   :op "add"
                   :children [{:name "X-21"

@@ -55,7 +55,7 @@
 
 (defn enum-registry [metadb]
  (->> metadb
-      (ds/q '[:find (pull ?t [:type/kebab-case-name
+      (ds/q '[:find (pull ?t [*
                               {:field/_parent [:field/kebab-case-name]}])
               :where [?t :type/enum]])
       (mapcat identity)
@@ -67,18 +67,20 @@
       (into {})))
 
 
-(defn resolve-entities [es]
+(defn resolve-entities
+ [type-name-key field-name-key es]
  (->> es
       (mapcat identity)
-      (map (fn [{tn       :type/kebab-case-name
+      (map (fn [{tn       type-name-key
                  children :field/_parent}]
             [tn (->> children
-                     (map (fn [{fname                     :field/kebab-case-name
-                                [m n]                      :field/cardinality
-                                {:type/keys [nature name kebab-case-name]
-                                 :spec/keys [extend gen]} :field/type}]
+                     (map (fn [{fname               field-name-key
+                                [m n]               :field/cardinality
+                                {:type/keys [nature name]
+                                 :spec/keys [extend gen]
+                                 :as        f-type} :field/type}]
                            (let [t (if (= nature :user)
-                                    kebab-case-name
+                                    (get f-type type-name-key)
                                     (or extend (hodur->malli-types
                                                 (and name
                                                      (symbol name))) any?))]
@@ -94,38 +96,36 @@
 
 (def entities-base-clause
  '[:find (pull ?e
-               [:type/kebab-case-name
+               [*
                 {:field/_parent
                  [:field/kebab-case-name
                   :field/cardinality
-                  {:field/type [:type/nature
-                                :type/name
-                                :spec/extend
-                                :spec/gen
-                                :type/kebab-case-name]}]}])])
+                  {:field/type [*]}]}])])
 
-(defn entities-registry [metadb]
+(defn entities-registry [metadb type-name-key field-name-key]
  (->> metadb
       (ds/q (conj entities-base-clause
                   :where
                   '[?e :type/nature :user]
                   '(not [?e :type/enum])))
-      resolve-entities))
+      (resolve-entities type-name-key field-name-key)))
 
-(defn base-entities [metadb]
+(defn base-entities [metadb type-name-key field-name-key]
  (->> metadb
       (ds/q (conj entities-base-clause
                   :where
                   '[?e :type/nature :user]
                   '(not [?f :field/type ?e])
                   '(not [?e :type/enum])))
-      resolve-entities))
+      (resolve-entities type-name-key field-name-key)))
 
-(defn ->malli [metadb]
+(defn ->malli
+ [metadb & {:keys [type-name-key field-name-key]
+            :or   {type-name-key  :type/kebab-case-name
+                   field-name-key :field/kebab-case-name}}]
  (let [enums (enum-registry metadb)
-       sub-entities (entities-registry metadb)
-       base-entities (base-entities metadb)]
-
+       sub-entities (entities-registry metadb type-name-key field-name-key)
+       base-entities (base-entities metadb type-name-key field-name-key)]
   (->> base-entities
        (vals)
        (into [:or {:registry (merge enums sub-entities)}]))))
